@@ -58,44 +58,68 @@ def roman_to_int(input):
         return None
 
 global x
-vOut = x
+v = x
+vOut = {'|||'}
 
-if x != '|||':
-	vOut = []
-	v = x.split('-')
-	v = [x.lower() for x in v]
-	v = [x.replace('?', '') for x in v]
-	v = [x.strip() for x in v]
-
-	for i in list(range(len(v))):
-		f = re.findall(r'([0-9]+)th.*cen.*', v[i])
-		if len(f) > 0:
-			for ff in f:
-				vOut.append(f'{ff}00')
-			continue
-
-		f = re.findall(r'([0-9]+)\s*a[\s.j]*c', v[i])
-		if len(f) > 0:
-			for ff in f:
-				vOut.append(f'-{ff}')
-			continue
-
-		if re.match(r'.*(s.|segle|sec.|siglo|century|siecle).*\b[mdclxvi]+\b.*', v[i]):
-			f = re.findall(r'.*(s.|segle|sec.|siglo|century|siecle).*(\b[mdclxvi]+\b).*', v[i])[0]
-			f = str(roman_to_int(f[1]))
-			f = '-'+f if re.match(r'.*a[\s.j]*c\b.*', v[i]) else f
-			vOut.append(f)
-			continue
-
-		if re.match(r'[\D]*[0-9]+[\D]*', v[i]):
-			vOut.append(re.findall(r'[0-9]+', v[i])[0])
-			continue
-		
-		try:
-			vOut = vOut if len(vOut) == 1 else ['-'+vOut[0], vOut[1]] if int(vOut[0]) > int(vOut[1]) else [vOut[0], vOut[1]]
-			vOut = [int(x) for x in vOut]
-		except:
-			print(x, vOut)
+if v != '|||':
+    if re.match(r'^.*[0-9]{4}-[0-9]{2}\b.*$', v):
+        f = re.findall(r'([0-9]{4})-([0-9]{2})', v)[0]
+        
+        if int(f[0][2:4])<int(f[1]):
+            v=f[0]+'-'+f[0][0:2]+f[1]
+        elif int(f[0][0:2])<int(f[1]):
+            v=f[0]+'-'+f[1]+'00'
+    
+    vOut = []
+    v = v.split('-')
+    v = [x.lower() for x in v]
+    v = [x.replace('?', '') for x in v]
+    v = [x.strip() for x in v]
+    
+    for i in list(range(len(v))):
+        f = re.findall(r'([0-9]+)th.*cen.*', v[i])
+        if len(f) > 0:
+            for ff in f:
+                vOut.append(f'{ff}00')
+            continue
+                
+        f = re.findall(r'([0-9]+)\s*a[\s.j]*c', v[i])
+        if len(f) > 0:
+            for ff in f:
+                vOut.append(f'-{ff}')
+            continue
+            
+        if re.match(r'.*(s.|segle|sec.|siglo|century|siecle).*\b[mdclxvi]+\b.*', v[i]):
+            f = re.findall(r'.*(s.|segle|sec.|siglo|century|siecle).*(\b[mdclxvi]+\b).*', v[i])[0]
+            f = str(roman_to_int(f[1]))
+            f = '-'+f if re.match(r'.*a[\s.j]*c\b.*', v[i]) else f
+            vOut.append(f)
+            continue
+        
+        f = re.findall(r'([0-9]+)\s*a[\s.j]*c', v[i])
+        if len(f) > 0:
+            for ff in f:
+                vOut.append(f'-{ff}')
+            continue                
+                
+        if re.match(r'[\D]*[0-9]+[\D]*', v[i]):
+            y = re.findall(r'[0-9]{3,4}', v[i])
+            if len(y) > 0:
+                vOut.append(y[0])
+            y = re.findall(r'[0-9]{2}', v[i])
+            if len(y) > 0:
+                vOut.append(y[0]+'00')
+                
+            continue
+    
+    try:
+        vOut = vOut if len(vOut) == 1 else ['-'+vOut[0], vOut[1]] if int(vOut[0]) > int(vOut[1]) else [vOut[0], vOut[1]]
+        vOut = [int(x) for x in vOut]
+        
+    except:
+        print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+        print(c, x)
+        pass
 
 return vOut
 $$ LANGUAGE plpython3u;
