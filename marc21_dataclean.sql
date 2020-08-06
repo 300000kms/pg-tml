@@ -123,3 +123,88 @@ if v != '|||':
 
 return vOut
 $$ LANGUAGE plpython3u;
+
+
+CREATE OR REPLACE FUNCTION tmd_cleanlang(x text) 
+/*
+THIS FUNCTION AIMS TO CLEAN AND NORMALIZE LANGUAGES IN MARC21 DATA SCRAPPING
+THE INPUT IS AN STRING CONTAINING A LANGUAGE
+*/
+RETURNS text
+AS $$
+import unidecode
+import re
+import Levenshtein as leven
+from iso639 import languages
+
+langs = sorted([l.name for l in languages])
+langDict = {}
+dataOut = []
+
+l = l.lower().strip()
+l = unidecode.unidecode(l)
+
+langList.add(l)
+l = re.split(r'\-|\&|\sy\s|\si\s|\,|\se\s|\=|\sand\s|\set\s|\su\.\s', l)
+
+for ll in l:
+lengCode = None
+
+ll = re.sub(r'\W+', ' ', ll)
+ll = re.sub(r'\s\s+', ' ', ll)
+ll = ll.strip()
+
+if re.match(r'^[\w]{3}$', ll):
+    try:
+        ll = languages.get(part2b=ll)
+        lengCode = ll.part2b
+
+    except:
+        langDict[ll] = ''
+
+elif ll.title() in langs:
+    ll = languages.get(name=ll.title())
+    lengCode = ll.part2b
+
+elif any(x.title() in langs for x in ll.split(' ')):
+    ll = list(set([x.title() for x in ll.split(' ') if x.title() in langs]))
+    ll = ll[0]
+    ll = languages.get(name=ll.title())
+    lengCode = ll.part2b
+    
+elif ll == 'span':
+    ll = languages.get(name='Spanish')
+    lengCode = ll.part2b
+    
+elif ll == 'engl':
+    ll = languages.get(name='English')
+    lengCode = ll.part2b
+    
+elif ll == 'arabe':
+    ll = languages.get(name='Arabic')
+    lengCode = ll.part2b
+
+elif sorted([leven.distance(ll.title(), x) for x in langs])[0] < 2:
+    lang = [x for x in langs if leven.distance(ll.title(), x) < 2][0]
+    ll = languages.get(name=lang)
+    lengCode = ll.part2b
+
+else:
+    langDict[ll] = ''
+    
+dataOut.append(lengCode)
+
+dataOut = [x for x in dataOut if x and x != '']
+d1 = dataOut[0] if len(dataOut) > 0 else None
+d2 = dataOut[1] if len(dataOut) > 1 else None
+dataOut = {'l1': d1, 'l2': d2}
+#     print(dataOut)
+    
+if exp_dict:
+listDict = [{'nom': x, 'nom_c': ''} for x in sorted(langDict.keys())]
+listDict = [{'nom': x, 'nom_c':languages.get(name=x).part2b} for x in langs if languages.get(name=x).part2b != ''] + listDict
+dfLangDict = pd.DataFrame(listDict)
+dfLangDict.to_sql('lang_dict', con = PG_CON, schema = 'data_in', if_exists = 'append', index = False)
+
+return dataOut
+$$ LANGUAGE plpython3u;
