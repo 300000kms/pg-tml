@@ -6,13 +6,20 @@ INTALL UNIDECODE
 pip install unidecode
 */
 
-CREATE OR REPLACE FUNCTION tmd_cleandate(x text) 
+CREATE TYPE tm_fecha AS (
+	fecha1 integer, 
+	fecha1q Varchar, 
+	fecha2 integer, 
+	fecha2q Varchar
+);
+
+CREATE OR REPLACE FUNCTION tm_cleandate(x text) 
 /*
 THIS FUNCTION AIMS TO CLEAN AND NORMALIZE DATES IN MARC21 DATA SCRAPPING
 THE INPUT IS AN STRING CONTAINING A DATE
 THE OUTPUT IS AN ARRAY OF ARRAYS WHERE EACH INNER ARRAY CONTAINS A FIRST ELEMENT WITH THE DATA AND SECOND WITRH THE QUALITY IN => D FOR DATE, Y FOR YEAR, C FOR CENTURY
 */
-RETURNS text
+RETURNS tm_fecha
 AS $$
 import re
 import unidecode
@@ -62,64 +69,63 @@ v = x
 vOut = {'|||'}
 
 if v != '|||':
-    if re.match(r'^.*[0-9]{4}-[0-9]{2}\b.*$', v):
-        f = re.findall(r'([0-9]{4})-([0-9]{2})', v)[0]
-        
-        if int(f[0][2:4])<int(f[1]):
-            v=f[0]+'-'+f[0][0:2]+f[1]
-        elif int(f[0][0:2])<int(f[1]):
-            v=f[0]+'-'+f[1]+'00'
-    
-    vOut = []
-    v = v.split('-')
-    v = [x.lower() for x in v]
-    v = [x.replace('?', '') for x in v]
-    v = [x.strip() for x in v]
-    
-    for i in list(range(len(v))):
-        f = re.findall(r'([0-9]+)th.*cen.*', v[i])
-        if len(f) > 0:
-            for ff in f:
-                vOut.append(f'{ff}00')
+if re.match(r'^.*[0-9]{4}-[0-9]{2}\b.*$', v):
+    f = re.findall(r'([0-9]{4})-([0-9]{2})', v)[0]
+
+    if int(f[0][2:4])<int(f[1]):
+        v=f[0]+'-'+f[0][0:2]+f[1]
+    elif int(f[0][0:2])<int(f[1]):
+        v=f[0]+'-'+f[1]+'00'
+
+vOut = []
+v = v.split('-')
+v = [x.lower() for x in v]
+v = [x.replace('?', '') for x in v]
+v = [x.strip() for x in v]
+
+for i in list(range(len(v))):
+    f = re.findall(r'([0-9]+)th.*cen.*', v[i])
+    if len(f) > 0:
+        for ff in f:
+            vOut.append([f'{ff}00', 'century incomplete'])
+        continue
+
+    f = re.findall(r'([0-9]+)\s*a[\s.j]*c', v[i])
+    if len(f) > 0:
+        for ff in f:
+            vOut.append([f'-{ff}', 'year'])
+        continue
+
+    if re.match(r'.*(s.|segle|sec.|siglo|century|siecle).*\b[mdclxvi]+\b.*', v[i]):
+        f = re.findall(r'.*(s.|segle|sec.|siglo|century|siecle).*(\b[mdclxvi]+\b).*', v[i])[0]
+        f = str(roman_to_int(f[1]))
+        f = '-'+f if re.match(r'.*a[\s.j]*c\b.*', v[i]) else f
+        vOut.append([f, 'century'])
+        continue                
+
+    if re.match(r'[\D]*[0-9]+[\D]*', v[i]):
+        y = re.findall(r'[0-9]{3,4}', v[i])
+        if len(y) > 0:
+            vOut.append([y[0], 'year'])
             continue
-                
-        f = re.findall(r'([0-9]+)\s*a[\s.j]*c', v[i])
-        if len(f) > 0:
-            for ff in f:
-                vOut.append(f'-{ff}')
+        y = re.findall(r'[0-9]{2}', v[i])
+        if len(y) > 0:
+            vOut.append([y[0]+'00', 'century incomplete'])
             continue
-            
-        if re.match(r'.*(s.|segle|sec.|siglo|century|siecle).*\b[mdclxvi]+\b.*', v[i]):
-            f = re.findall(r'.*(s.|segle|sec.|siglo|century|siecle).*(\b[mdclxvi]+\b).*', v[i])[0]
-            f = str(roman_to_int(f[1]))
-            f = '-'+f if re.match(r'.*a[\s.j]*c\b.*', v[i]) else f
-            vOut.append(f)
-            continue
-        
-        f = re.findall(r'([0-9]+)\s*a[\s.j]*c', v[i])
-        if len(f) > 0:
-            for ff in f:
-                vOut.append(f'-{ff}')
-            continue                
-                
-        if re.match(r'[\D]*[0-9]+[\D]*', v[i]):
-            y = re.findall(r'[0-9]{3,4}', v[i])
-            if len(y) > 0:
-                vOut.append(y[0])
-            y = re.findall(r'[0-9]{2}', v[i])
-            if len(y) > 0:
-                vOut.append(y[0]+'00')
-                
-            continue
-    
-    try:
-        vOut = vOut if len(vOut) == 1 else ['-'+vOut[0], vOut[1]] if int(vOut[0]) > int(vOut[1]) else [vOut[0], vOut[1]]
-        vOut = [int(x) for x in vOut]
-        
-    except:
-        print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-        print(c, x)
-        pass
+
+if len(vOut) == 1:
+    vOut = [vOut[0][0], vOut[0][1], '|||', '|||']
+
+elif len(vOut) >= 2: 
+    if vOut[1][0] < vOut[0][0]:
+        vOut = [vOut[1][0], vOut[1][1], vOut[0][0], vOut[0][1]]
+    else:
+        vOut = [vOut[0][0], vOut[0][1], vOut[1][0], vOut[1][1]]
+
+else:
+    print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    print(c, x)
+    pass
 
 return vOut
 $$ LANGUAGE plpython3u;
